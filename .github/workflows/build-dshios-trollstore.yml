@@ -34,6 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Meson builds fakefsify and unfakefsify only when libarchive is present.
           brew install meson ninja lld ldid libarchive
           echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
           if ! ruby -e 'require "xcodeproj"' >/dev/null 2>&1; then
