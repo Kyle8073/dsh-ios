@@ -1,0 +1,103 @@
+name: Build DSHIOS TrollStore IPA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-dshios-trollstore.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out exact source commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify host environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "arm64"
+          xcodebuild -version
+          node --version
+          npm --version
+
+      - name: Install macOS build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install meson ninja lld ldid
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          if ! ruby -e 'require "xcodeproj"' >/dev/null 2>&1; then
+            gem install xcodeproj --user-install --no-document
+          fi
+          ruby -e 'require "xcodeproj"; puts Xcodeproj::VERSION'
+
+      - name: Build iSH emulator and pinned guest root filesystem
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$(brew --prefix lld)/bin:$PATH"
+          make emulator
+          make rootfs
+          test -s build/root.tar.gz
+          shasum -a 256 build/root.tar.gz
+
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          make project
+          test -d DSH.xcodeproj
+
+      - name: Compile iOS device application without developer certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project DSH.xcodeproj \
+            -scheme DSH \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/DSHDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS= \
+            DSH_DEVELOPMENT_TEAM= \
+            DSH_BUNDLE_ID_PREFIX=com.kyle8073 \
+            build
+
+      - name: Package and fake-sign for TrollStore
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/DSHDerivedData/Build/Products/Release-iphoneos/DSH.app"
+          test -f "$APP/DSH"
+          test -s "$APP/root.tar.gz"
+          mkdir -p "$RUNNER_TEMP/DSHIPackage/Payload"
+          ditto "$APP" "$RUNNER_TEMP/DSHIPackage/Payload/DSH.app"
+          cd "$RUNNER_TEMP/DSHIPackage"
+          ldid -S Payload/DSH.app/DSH
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' Payload/DSH.app/Info.plist
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Payload/DSH.app/Info.plist
+          file Payload/DSH.app/DSH
+          ditto -c -k --keepParent Payload "$GITHUB_WORKSPACE/DSHIOS-TrollStore.ipa"
+          shasum -a 256 "$GITHUB_WORKSPACE/DSHIOS-TrollStore.ipa" > "$GITHUB_WORKSPACE/DSHIOS-TrollStore.ipa.sha256"
+
+      - name: Publish build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSHIOS-TrollStore
+          path: |
+            DSHIOS-TrollStore.ipa
+            DSHIOS-TrollStore.ipa.sha256
+          retention-days: 7
+          if-no-files-found: error
