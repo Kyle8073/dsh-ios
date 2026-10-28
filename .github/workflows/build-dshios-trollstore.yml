@@ -30,6 +30,10 @@ jobs:
           node --version
           npm --version
 
+      - name: Test compatibility with older WebKit
+        shell: bash
+        run: node tests/web-compat-test.mjs
+
       - name: Install macOS build dependencies
         shell: bash
         run: |

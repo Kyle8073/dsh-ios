@@ -59,6 +59,7 @@ test: test-emu test-rootfs test-sim
 test-emu: emulator
 	tests/emu-test.sh
 	tests/scripts-test.sh
+	node tests/web-compat-test.mjs
 
 test-rootfs: emulator
 	tests/rootfs-test.sh

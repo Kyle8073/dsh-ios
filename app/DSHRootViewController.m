@@ -4,6 +4,7 @@
 //
 
 #import "DSHRootViewController.h"
+#import "DSHWebCompat.h"
 #import "DSHHarness.h"
 #import "DSHBootCoordinator.h"
 #import "DSHLogViewController.h"
@@ -71,6 +72,11 @@ static NSString *const kDSHUserAgentSuffix = @" DSH-iOS/1.0";
     config.websiteDataStore = WKWebsiteDataStore.defaultDataStore;
     config.applicationNameForUserAgent = kDSHUserAgentSuffix;
     config.defaultWebpagePreferences.allowsContentJavaScript = YES;
+    WKUserScript *compat = [[WKUserScript alloc]
+        initWithSource:[NSString stringWithUTF8String:DSHWebCompatSource]
+        injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+        forMainFrameOnly:YES];
+    [config.userContentController addUserScript:compat];
     self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
     self.webView.navigationDelegate = self;
     self.webView.UIDelegate = self;
