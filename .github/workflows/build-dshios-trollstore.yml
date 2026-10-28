@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          brew install meson ninja lld ldid
+          brew install meson ninja lld ldid libarchive
           echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
           if ! ruby -e 'require "xcodeproj"' >/dev/null 2>&1; then
             gem install xcodeproj --user-install --no-document
